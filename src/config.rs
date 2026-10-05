@@ -1,6 +1,7 @@
 //! Persistent settings: %APPDATA%\LogiTray\config.json
 
 use crate::features::rgb::{Effect, Rgb};
+use crate::i18n::LanguagePref;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -74,6 +75,8 @@ pub struct Config {
     pub restore_on_start: bool,
     /// Poll interval for battery / DPI readback.
     pub refresh_secs: u64,
+    /// UI language. `auto` follows the Windows display language.
+    pub language: LanguagePref,
     /// Last applied state per device name.
     pub devices: BTreeMap<String, DeviceState>,
 }
@@ -105,6 +108,7 @@ impl Default for Config {
             persist_lighting: false,
             restore_on_start: true,
             refresh_secs: 60,
+            language: LanguagePref::Auto,
             devices: BTreeMap::new(),
         }
     }

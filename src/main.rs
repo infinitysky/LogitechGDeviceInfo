@@ -56,6 +56,8 @@ fn main() {
 fn run_tray() -> Result<()> {
     // Per-monitor DPI awareness so the shell reports the real small-icon size for badge rendering.
     winutil::enable_dpi_awareness();
+    let cfg = Config::load();
+    i18n::apply(cfg.language);
     if !winutil::acquire_single_instance("Local\\LogiTray.SingleInstance") {
         winutil::message_box(
             APP_NAME,
@@ -64,10 +66,10 @@ fn run_tray() -> Result<()> {
         );
         return Ok(());
     }
-    let cfg = Config::load();
     app::log_line(&format!(
-        "--- {APP_NAME} v{} starting (UI {})",
+        "--- {APP_NAME} v{} starting (UI {} -> {})",
         env!("CARGO_PKG_VERSION"),
+        cfg.language.code(),
         i18n::lang().code()
     ));
     let mut app = App::new(cfg).context("failed to create the tray icon")?;

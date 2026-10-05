@@ -218,6 +218,7 @@ enum Action {
         value: u16,
     },
     SetTrayDisplay(Option<TrayDisplay>),
+    SetLanguage(i18n::LanguagePref),
     TogglePersist,
     ToggleRestore,
     ToggleAutostart,
@@ -474,6 +475,7 @@ impl App {
     // ------------------------------------------------------------------- menu
 
     pub fn rebuild_menu(&mut self) {
+        i18n::apply(self.cfg.language);
         let (menu, actions) = self.build_menu();
         self.actions = actions;
         self.tray.set_menu(Some(Box::new(menu)));
@@ -977,6 +979,20 @@ impl App {
             None,
         );
         actions.insert(autostart.id().clone(), Action::ToggleAutostart);
+        let lang_label = match self.cfg.language {
+            i18n::LanguagePref::Auto => t("Follow system"),
+            pref => pref.resolve().native_name(),
+        };
+        let lang_sub = Submenu::new(format!("{}: {lang_label}", t("Language")), true);
+        for pref in i18n::LanguagePref::ALL {
+            let label = match pref {
+                i18n::LanguagePref::Auto => t("Follow system").to_owned(),
+                other => other.resolve().native_name().to_owned(),
+            };
+            let it = CheckMenuItem::new(label, true, pref == self.cfg.language, None);
+            actions.insert(it.id().clone(), Action::SetLanguage(pref));
+            let _ = lang_sub.append(&it);
+        }
         let open_cfg = MenuItem::new(t("Open config file (DPI presets / palette)"), true, None);
         actions.insert(open_cfg.id().clone(), Action::OpenConfig);
         let refresh = MenuItem::new(t("Refresh"), true, None);
@@ -987,10 +1003,11 @@ impl App {
         actions.insert(about.id().clone(), Action::About);
         let quit = MenuItem::new(t("Quit"), true, None);
         actions.insert(quit.id().clone(), Action::Quit);
-        let items: [&dyn IsMenuItem; 10] = [
+        let items: [&dyn IsMenuItem; 11] = [
             &persist,
             &restore,
             &autostart,
+            &lang_sub,
             &PredefinedMenuItem::separator(),
             &open_cfg,
             &refresh,
@@ -1227,6 +1244,15 @@ impl App {
                 self.cfg.device_mut(&key).brightness = Some(value);
             }
             Action::SetTrayDisplay(td) => self.cfg.tray_display = td,
+            Action::SetLanguage(pref) => {
+                self.cfg.language = pref;
+                i18n::apply(pref);
+                self.log(format!(
+                    "UI language set to {} ({})",
+                    pref.code(),
+                    pref.resolve().code()
+                ));
+            }
             Action::TogglePersist => self.cfg.persist_lighting = !self.cfg.persist_lighting,
             Action::ToggleRestore => self.cfg.restore_on_start = !self.cfg.restore_on_start,
             Action::ToggleAutostart => winutil::set_autostart(!winutil::autostart_enabled())?,
@@ -1316,6 +1342,7 @@ fn is_device_config(action: &Action) -> bool {
     !matches!(
         action,
         Action::SetTrayDisplay(_)
+            | Action::SetLanguage(_)
             | Action::ToggleAutostart
             | Action::OpenConfig
             | Action::Refresh

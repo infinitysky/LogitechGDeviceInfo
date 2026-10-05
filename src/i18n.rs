@@ -1,9 +1,10 @@
-//! UI language. Detected once from the Windows UI language.
+//! UI language. Starts from the Windows UI language, then follows the menu choice.
 //! English is the default and the language of every log line — do not pass log text through `t`.
 
 use crate::features::misc::{Battery, ChargeNote};
 use crate::features::rgb::{self, Effect};
-use std::sync::OnceLock;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::RwLock;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -24,12 +25,103 @@ impl Lang {
             Lang::Ko => "ko",
         }
     }
+
+    /// Name in that language itself, so the menu stays recognizable after a switch.
+    pub fn native_name(self) -> &'static str {
+        match self {
+            Lang::En => "English",
+            Lang::ZhHans => "简体中文",
+            Lang::ZhHant => "繁體中文",
+            Lang::Ja => "日本語",
+            Lang::Ko => "한국어",
+        }
+    }
 }
 
-static LANG: OnceLock<Lang> = OnceLock::new();
+/// Saved preference. `Auto` follows the Windows display language.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum LanguagePref {
+    #[default]
+    Auto,
+    En,
+    ZhHans,
+    ZhHant,
+    Ja,
+    Ko,
+}
+
+impl LanguagePref {
+    pub const ALL: [LanguagePref; 6] = [
+        LanguagePref::Auto,
+        LanguagePref::En,
+        LanguagePref::ZhHans,
+        LanguagePref::ZhHant,
+        LanguagePref::Ja,
+        LanguagePref::Ko,
+    ];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            LanguagePref::Auto => "auto",
+            LanguagePref::En => "en",
+            LanguagePref::ZhHans => "zh-Hans",
+            LanguagePref::ZhHant => "zh-Hant",
+            LanguagePref::Ja => "ja",
+            LanguagePref::Ko => "ko",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "auto" => LanguagePref::Auto,
+            "en" => LanguagePref::En,
+            "zh-Hans" | "zh-CN" | "zh" => LanguagePref::ZhHans,
+            "zh-Hant" | "zh-TW" | "zh-HK" => LanguagePref::ZhHant,
+            "ja" => LanguagePref::Ja,
+            "ko" => LanguagePref::Ko,
+            _ => return None,
+        })
+    }
+
+    pub fn resolve(self) -> Lang {
+        match self {
+            LanguagePref::Auto => detect(),
+            LanguagePref::En => Lang::En,
+            LanguagePref::ZhHans => Lang::ZhHans,
+            LanguagePref::ZhHant => Lang::ZhHant,
+            LanguagePref::Ja => Lang::Ja,
+            LanguagePref::Ko => Lang::Ko,
+        }
+    }
+}
+
+impl Serialize for LanguagePref {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.code())
+    }
+}
+
+impl<'de> Deserialize<'de> for LanguagePref {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(Self::parse(&s).unwrap_or(LanguagePref::Auto))
+    }
+}
+
+static LANG: RwLock<Option<Lang>> = RwLock::new(None);
 
 pub fn lang() -> Lang {
-    *LANG.get_or_init(detect)
+    if let Some(lang) = *LANG.read().unwrap_or_else(|e| e.into_inner()) {
+        return lang;
+    }
+    let detected = detect();
+    let mut slot = LANG.write().unwrap_or_else(|e| e.into_inner());
+    *slot.get_or_insert(detected)
+}
+
+/// Switch the UI language. Takes effect on the next `t` call.
+pub fn apply(pref: LanguagePref) {
+    *LANG.write().unwrap_or_else(|e| e.into_inner()) = Some(pref.resolve());
 }
 
 fn detect() -> Lang {
@@ -197,6 +289,8 @@ fn zh_hans(en: &str) -> Option<&'static str> {
         "Refresh" => "刷新状态",
         "Rescan devices" => "重新扫描设备",
         "About" => "关于 / 诊断信息",
+        "Language" => "语言",
+        "Follow system" => "跟随系统",
         "Quit" => "退出",
         "G HUB is running — settings locked" => "G HUB 正在运行 — 设备设置已锁定",
         "G HUB is running and has taken over the devices, so settings are locked. You can still view battery and change the tray icon." => {
@@ -295,6 +389,8 @@ fn zh_hant(en: &str) -> Option<&'static str> {
         "Refresh" => "重新整理狀態",
         "Rescan devices" => "重新掃描裝置",
         "About" => "關於 / 診斷資訊",
+        "Language" => "語言",
+        "Follow system" => "跟隨系統",
         "Quit" => "結束",
         "G HUB is running — settings locked" => "G HUB 執行中 — 裝置設定已鎖定",
         "G HUB is running and has taken over the devices, so settings are locked. You can still view battery and change the tray icon." => {
@@ -399,6 +495,8 @@ fn ja(en: &str) -> Option<&'static str> {
         "Refresh" => "状態を更新",
         "Rescan devices" => "デバイスを再スキャン",
         "About" => "バージョン情報",
+        "Language" => "言語",
+        "Follow system" => "システムに合わせる",
         "Quit" => "終了",
         "G HUB is running — settings locked" => "G HUB 実行中 — 設定はロックされています",
         "G HUB is running and has taken over the devices, so settings are locked. You can still view battery and change the tray icon." => {
@@ -499,6 +597,8 @@ fn ko(en: &str) -> Option<&'static str> {
         "Refresh" => "상태 새로고침",
         "Rescan devices" => "장치 다시 검색",
         "About" => "정보 / 진단",
+        "Language" => "언어",
+        "Follow system" => "시스템 언어 따르기",
         "Quit" => "종료",
         "G HUB is running — settings locked" => "G HUB 실행 중 — 설정이 잠겨 있습니다",
         "G HUB is running and has taken over the devices, so settings are locked. You can still view battery and change the tray icon." => {

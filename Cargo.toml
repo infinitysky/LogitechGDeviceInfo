@@ -1,6 +1,6 @@
 [package]
 name = "logitray"
-version = "0.1.0"
+version = "1.0.2"
 edition = "2024"
 description = "Lightweight tray app to inspect/control Logitech G devices (DPI, lighting) over HID++ 2.0"
 
