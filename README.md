@@ -200,6 +200,10 @@ src/
 Protocol details are based on [libratbag](https://github.com/libratbag/libratbag) and
 [Solaar](https://github.com/pwr-Solaar/Solaar).
 
+### License
+
+[MIT](LICENSE)
+
 ---
 
 ## 中文
@@ -375,3 +379,7 @@ src/
 ```
 
 协议细节参考了 [libratbag](https://github.com/libratbag/libratbag) 与 [Solaar](https://github.com/pwr-Solaar/Solaar)。
+
+### 许可证
+
+[MIT](LICENSE)
